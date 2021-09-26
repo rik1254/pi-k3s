@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata: 
+  name: elastic-pv
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Delete
+  nfs:
+    path: /data/elastic
+    server: 192.168.1.220
+    readOnly: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elastic-pvc
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: ""
+  volumeMode: Filesystem
+  volumeName: elastic-pv
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: development
+spec:
+  version: 7.14.0
+  nodeSets:
+  - name: masters
+    # How many to maintain
+    count: 3
+    config:
+      # Cluster name inside ES
+      cluster.name: es-pi-cluster
+      node.store.allow_mmap: false
+      path.data: /data/elastic/data/${POD_NAME}
+    podTemplate:
+      metadata:
+        # Reference labels for the pod
+        labels:
+          author: rik1254
+      spec:
+        volumes:
+        - name: elastic-pv-storage
+          persistentVolumeClaim:
+            claimName: elastic-pvc
+        # Pod resrouce limits
+        containers:
+        - name: elasticsearch
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: 2
+          env:
+          # This doesn't modify jvm.options, only the execution command jvm opts
+          - name: ES_JAVA_OPTS
+            value: "-Xms1G -Xmx1G"
+          volumeMounts:
+            - name: elastic-pv-storage
+              mountPath: /data/elastic
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: es-service
+spec:
+  selector:
+    common.k8s.elastic.co/type: elasticsearch
+    elasticsearch.k8s.elastic.co/cluster-name: development
+  type: NodePort
+  ports:
+    - port: 9200
+      targetPort: 9200
+      nodePort: 32092

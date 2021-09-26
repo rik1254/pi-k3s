@@ -1,0 +1,27 @@
+# https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-deploy-kibana.html
+#
+#
+
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: development
+spec:
+  version: 7.14.0
+  count: 1
+  elasticsearchRef:
+    name: development
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana-service
+spec:
+  selector:
+    common.k8s.elastic.co/type: kibana
+    kibana.k8s.elastic.co/name: development
+  type: NodePort
+  ports:
+    - port: 5601
+      targetPort: 5601
+      nodePort: 32056
