@@ -1,0 +1,80 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nexus-pv
+spec:
+  capacity:
+    storage: 25Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: /data/nexus
+    server: 192.168.1.220
+    readOnly: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nexus-pvc
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: ""
+  volumeMode: Filesystem
+  volumeName: nexus-pv
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexus-server
+  template:
+    metadata:
+      labels:
+        app: nexus-server
+    spec:
+      volumes:
+        - name: nexus-pv-storage
+          persistentVolumeClaim:
+            claimName: nexus-pvc
+      containers:
+        - name: nexus
+          image: klo2k/nexus3:3.32.0-03
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "4000m"
+            requests:
+              memory: "1Gi"
+              cpu: "1000m"
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: nexus-pv-storage
+              mountPath: /data/nexus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus-service
+  annotations:
+      prometheus.io/scrape: 'true'
+      prometheus.io/path:   /
+      prometheus.io/port:   '8081'
+spec:
+  selector:
+    app: nexus-server
+  type: NodePort
+  ports:
+    - port: 8081
+      targetPort: 8081
+      nodePort: 32000
